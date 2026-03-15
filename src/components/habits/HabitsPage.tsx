@@ -1,9 +1,11 @@
 'use client'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useAppStore, HabitCategory, Habit } from '@/store/store'
-import { Plus, Trash2, Flame, Check, X } from 'lucide-react'
+import { Plus, Trash2, Flame, Check, X, LayoutGrid, BookOpen, TrendingUp, Briefcase, Sparkles } from 'lucide-react'
 import { todayStr, getCategoryLabel, getCategoryColor, getStreak } from '@/lib/utils'
 import { format, subDays } from 'date-fns'
+
+type TabCategory = HabitCategory | 'todos'
 
 const CATEGORIES: HabitCategory[] = [
   'momento-com-deus',
@@ -12,11 +14,17 @@ const CATEGORIES: HabitCategory[] = [
   'cuidados-pessoais',
 ]
 
-const CATEGORY_ICONS: Record<HabitCategory, string> = {
-  'momento-com-deus': '✝️',
-  'desenvolvimento': '💪',
-  'trabalho': '💼',
-  'cuidados-pessoais': '✨',
+const CATEGORY_ICONS: Record<TabCategory, React.ElementType> = {
+  'todos': LayoutGrid,
+  'momento-com-deus': BookOpen,
+  'desenvolvimento': TrendingUp,
+  'trabalho': Briefcase,
+  'cuidados-pessoais': Sparkles,
+}
+
+function CatIcon({ cat, size = 15 }: { cat: TabCategory; size?: number }) {
+  const Icon = CATEGORY_ICONS[cat]
+  return <Icon size={size} />
 }
 
 function MiniCalendar({ history }: { history: string[] }) {
@@ -42,7 +50,7 @@ function MiniCalendar({ history }: { history: string[] }) {
   )
 }
 
-function HabitItem({ habit }: { habit: Habit }) {
+function HabitItem({ habit, showCategory = false }: { habit: Habit; showCategory?: boolean }) {
   const { toggleHabit, deleteHabit } = useAppStore()
   const today = todayStr()
   const isDone = habit.history.includes(today)
@@ -68,15 +76,22 @@ function HabitItem({ habit }: { habit: Habit }) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <span
-          className={`text-sm font-medium ${
-            isDone
-              ? 'text-green-700 dark:text-green-400 line-through'
-              : 'text-slate-700 dark:text-slate-200'
-          }`}
-        >
-          {habit.name}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className={`text-sm font-medium ${
+              isDone
+                ? 'text-green-700 dark:text-green-400 line-through'
+                : 'text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            {habit.name}
+          </span>
+          {showCategory && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+              <CatIcon cat={habit.category} size={12} /> {getCategoryLabel(habit.category)}
+            </span>
+          )}
+        </div>
         <div className="mt-1.5 hidden sm:block">
           <MiniCalendar history={habit.history} />
         </div>
@@ -102,7 +117,7 @@ function HabitItem({ habit }: { habit: Habit }) {
 
 export default function HabitsPage() {
   const { habits, addHabit } = useAppStore()
-  const [activeCategory, setActiveCategory] = useState<HabitCategory>('momento-com-deus')
+  const [activeCategory, setActiveCategory] = useState<TabCategory>('todos')
   const [showAddModal, setShowAddModal] = useState(false)
   const [newHabitName, setNewHabitName] = useState('')
   const [newHabitCat, setNewHabitCat] = useState<HabitCategory>('momento-com-deus')
@@ -112,7 +127,9 @@ export default function HabitsPage() {
   const completedToday = habits.filter(h => h.history.includes(today)).length
   const pct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
 
-  const activeHabits = habits.filter(h => h.category === activeCategory)
+  const activeHabits = activeCategory === 'todos'
+    ? [...habits].sort((a, b) => a.category.localeCompare(b.category))
+    : habits.filter(h => h.category === activeCategory)
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
@@ -166,7 +183,7 @@ export default function HabitsPage() {
               const done = catHabits.filter(h => h.history.includes(today)).length
               return (
                 <div key={cat} className="text-center">
-                  <p className="text-lg">{CATEGORY_ICONS[cat]}</p>
+                  <CatIcon cat={cat} size={18} />
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                     {done}/{catHabits.length}
                   </p>
@@ -187,7 +204,7 @@ export default function HabitsPage() {
 
         {/* Category Tabs */}
         <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
-          {CATEGORIES.map(cat => (
+          {(['todos', ...CATEGORIES] as TabCategory[]).map(cat => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
@@ -197,8 +214,8 @@ export default function HabitsPage() {
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-100 dark:border-slate-700'
               }`}
             >
-              <span>{CATEGORY_ICONS[cat]}</span>
-              {getCategoryLabel(cat)}
+              <CatIcon cat={cat} />
+              {cat === 'todos' ? 'Todos' : getCategoryLabel(cat)}
             </button>
           ))}
         </div>
@@ -210,7 +227,7 @@ export default function HabitsPage() {
               <p className="text-sm mb-3">Nenhum hábito nesta categoria</p>
               <button
                 onClick={() => {
-                  setNewHabitCat(activeCategory)
+                  setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
                   setShowAddModal(true)
                 }}
                 className="text-sm text-gray-500 hover:text-black transition-colors"
@@ -219,19 +236,19 @@ export default function HabitsPage() {
               </button>
             </div>
           ) : (
-            activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} />)
+            activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} showCategory={activeCategory === 'todos'} />)
           )}
         </div>
 
         {/* Add Button */}
         <button
           onClick={() => {
-            setNewHabitCat(activeCategory)
+            setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
             setShowAddModal(true)
           }}
           className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-700 text-slate-400 hover:border-black hover:text-black dark:hover:border-gray-400 dark:hover:text-gray-300 transition-all duration-200 text-sm font-medium"
         >
-          <Plus size={16} /> Adicionar hábito em {getCategoryLabel(activeCategory)}
+          <Plus size={16} /> {activeCategory === 'todos' ? 'Adicionar hábito' : `Adicionar hábito em ${getCategoryLabel(activeCategory)}`}
         </button>
       </div>
 
@@ -278,7 +295,7 @@ export default function HabitsPage() {
                           : 'bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                       }`}
                     >
-                      <span>{CATEGORY_ICONS[cat]}</span>
+                      <CatIcon cat={cat} />
                       {getCategoryLabel(cat)}
                     </button>
                   ))}
