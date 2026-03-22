@@ -1,11 +1,13 @@
 'use client'
 import React, { useState } from 'react'
 import { useAppStore, HabitCategory, Habit } from '@/store/store'
-import { Plus, Trash2, Flame, Check, X, LayoutGrid, BookOpen, TrendingUp, Briefcase, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Flame, Check, X, LayoutGrid, BookOpen, TrendingUp, Briefcase, Sparkles, ChevronLeft, ChevronRight, CalendarDays, ListChecks } from 'lucide-react'
 import { todayStr, getCategoryLabel, getCategoryColor, getStreak } from '@/lib/utils'
-import { format, subDays } from 'date-fns'
+import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameMonth, isToday, isFuture } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 type TabCategory = HabitCategory | 'todos'
+type MainView = 'hoje' | 'historico'
 
 const CATEGORIES: HabitCategory[] = [
   'momento-com-deus',
@@ -87,7 +89,7 @@ function HabitItem({ habit, showCategory = false }: { habit: Habit; showCategory
             {habit.name}
           </span>
           {showCategory && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <CatIcon cat={habit.category} size={12} /> {getCategoryLabel(habit.category)}
             </span>
           )}
@@ -115,8 +117,185 @@ function HabitItem({ habit, showCategory = false }: { habit: Habit; showCategory
   )
 }
 
+// ── Habit History Calendar ───────────────────────────────────────────────────
+
+function getPctColor(pct: number): string {
+  if (pct === 0) return ''
+  if (pct < 30) return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+  if (pct < 60) return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+  if (pct < 100) return 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+  return 'bg-green-500 text-white'
+}
+
+function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
+  const [viewDate, setViewDate] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+
+  const getDayStats = (dateStr: string) => {
+    const total = habits.length
+    const done = habits.filter(h => h.history.includes(dateStr)).length
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0
+    const doneHabits = habits.filter(h => h.history.includes(dateStr))
+    const missedHabits = habits.filter(h => !h.history.includes(dateStr))
+    return { total, done, pct, doneHabits, missedHabits }
+  }
+
+  const monthStart = startOfMonth(viewDate)
+  const monthEnd = endOfMonth(viewDate)
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  const calDays = eachDayOfInterval({ start: calStart, end: calEnd })
+
+  const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+  const selectedStats = selectedDay ? getDayStats(selectedDay) : null
+
+  return (
+    <div className="animate-fade-in">
+      {/* Month Navigation */}
+      <div className="glass-card rounded-2xl p-5 shadow-sm mb-4">
+        <div className="flex items-center justify-between mb-5">
+          <button
+            onClick={() => setViewDate(v => subMonths(v, 1))}
+            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <h2 className="font-semibold text-slate-800 dark:text-white capitalize">
+            {format(viewDate, 'MMMM yyyy', { locale: ptBR })}
+          </h2>
+          <button
+            onClick={() => setViewDate(v => addMonths(v, 1))}
+            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+        {/* Week day headers */}
+        <div className="grid grid-cols-7 mb-2">
+          {WEEK_DAYS.map(d => (
+            <div key={d} className="text-center text-xs font-medium text-slate-400 py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {calDays.map(day => {
+            const dateStr = format(day, 'yyyy-MM-dd')
+            const inMonth = isSameMonth(day, viewDate)
+            const future = isFuture(day) && !isToday(day)
+            const stats = inMonth && !future ? getDayStats(dateStr) : null
+            const isSelected = selectedDay === dateStr
+            const todayDay = isToday(day)
+
+            return (
+              <button
+                key={dateStr}
+                onClick={() => {
+                  if (!inMonth || future) return
+                  setSelectedDay(isSelected ? null : dateStr)
+                }}
+                disabled={!inMonth || future}
+                className={`
+                  relative flex flex-col items-center justify-center rounded-xl aspect-square p-1 transition-all duration-150
+                  ${!inMonth ? 'opacity-20 cursor-default' : future ? 'opacity-30 cursor-default' : 'cursor-pointer hover:scale-105'}
+                  ${isSelected ? 'ring-2 ring-black dark:ring-white scale-105' : ''}
+                  ${stats && stats.pct > 0 ? getPctColor(stats.pct) : inMonth && !future ? 'bg-gray-50 dark:bg-slate-800/50' : ''}
+                `}
+              >
+                <span className={`text-xs font-semibold leading-none ${todayDay ? 'text-black dark:text-white underline underline-offset-2' : ''}`}>
+                  {format(day, 'd')}
+                </span>
+                {stats && stats.pct > 0 && (
+                  <span className="text-[10px] font-bold leading-none mt-0.5 opacity-90">
+                    {stats.pct}%
+                  </span>
+                )}
+                {stats && stats.pct === 0 && inMonth && !future && (
+                  <span className="text-[9px] text-slate-300 dark:text-slate-600 mt-0.5">—</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 dark:bg-red-900/30 inline-block" /> &lt;30%</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-yellow-100 dark:bg-yellow-900/30 inline-block" /> 30–60%</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/20 inline-block" /> 60–99%</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-500 inline-block" /> 100%</span>
+        </div>
+      </div>
+
+      {/* Day Detail Panel */}
+      {selectedDay && selectedStats && (
+        <div className="glass-card rounded-2xl p-5 shadow-sm animate-fade-in">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-slate-800 dark:text-white">
+                {format(new Date(selectedDay + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+              </h3>
+              <p className="text-sm text-slate-400 mt-0.5">
+                {selectedStats.done} de {selectedStats.total} hábitos — {selectedStats.pct}%
+              </p>
+            </div>
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold ${getPctColor(selectedStats.pct)} ${selectedStats.pct === 0 ? 'bg-gray-100 dark:bg-slate-700 text-slate-400' : ''}`}>
+              {selectedStats.pct}%
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 mb-4">
+            <div
+              className="h-2 rounded-full bg-gradient-to-r from-black to-gray-500 transition-all duration-500"
+              style={{ width: `${selectedStats.pct}%` }}
+            />
+          </div>
+
+          {/* Done habits */}
+          {selectedStats.doneHabits.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">Feitos</p>
+              <div className="space-y-1.5">
+                {selectedStats.doneHabits.map(h => (
+                  <div key={h.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <Check size={14} className="text-green-500 flex-shrink-0" />
+                    <span>{h.name}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{getCategoryLabel(h.category)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Missed habits */}
+          {selectedStats.missedHabits.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Não feitos</p>
+              <div className="space-y-1.5">
+                {selectedStats.missedHabits.map(h => (
+                  <div key={h.id} className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                    <X size={14} className="text-red-400 flex-shrink-0" />
+                    <span>{h.name}</span>
+                    <span className="text-xs text-slate-300 dark:text-slate-600 ml-auto">{getCategoryLabel(h.category)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+
 export default function HabitsPage() {
   const { habits, addHabit } = useAppStore()
+  const [mainView, setMainView] = useState<MainView>('hoje')
   const [activeCategory, setActiveCategory] = useState<TabCategory>('todos')
   const [showAddModal, setShowAddModal] = useState(false)
   const [newHabitName, setNewHabitName] = useState('')
@@ -153,14 +332,42 @@ export default function HabitsPage() {
 
       <div className="relative z-10 p-8 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-6 animate-fade-in">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Habits</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-            Tracking seus hábitos diários
-          </p>
+        <div className="mb-6 animate-fade-in flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Habits</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
+              Tracking seus hábitos diários
+            </p>
+          </div>
+
+          {/* View Toggle */}
+          <div className="flex items-center bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setMainView('hoje')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                mainView === 'hoje'
+                  ? 'bg-black text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <ListChecks size={15} />
+              Hoje
+            </button>
+            <button
+              onClick={() => setMainView('historico')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                mainView === 'historico'
+                  ? 'bg-black text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <CalendarDays size={15} />
+              Histórico
+            </button>
+          </div>
         </div>
 
-        {/* Progress Overview */}
+        {/* Progress Overview — sempre visível */}
         <div className="glass-card rounded-2xl p-6 mb-6 shadow-sm animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -202,54 +409,64 @@ export default function HabitsPage() {
           </div>
         </div>
 
-        {/* Category Tabs */}
-        <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
-          {(['todos', ...CATEGORIES] as TabCategory[]).map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
-                activeCategory === cat
-                  ? 'bg-black text-white shadow-md'
-                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-100 dark:border-slate-700'
-              }`}
-            >
-              <CatIcon cat={cat} />
-              {cat === 'todos' ? 'Todos' : getCategoryLabel(cat)}
-            </button>
-          ))}
-        </div>
-
-        {/* Habits List */}
-        <div className="space-y-2 animate-fade-in">
-          {activeHabits.length === 0 ? (
-            <div className="glass-card rounded-2xl p-12 text-center text-slate-400">
-              <p className="text-sm mb-3">Nenhum hábito nesta categoria</p>
-              <button
-                onClick={() => {
-                  setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
-                  setShowAddModal(true)
-                }}
-                className="text-sm text-gray-500 hover:text-black transition-colors"
-              >
-                + Adicionar hábito
-              </button>
+        {/* ── VIEW: HOJE ── */}
+        {mainView === 'hoje' && (
+          <>
+            {/* Category Tabs */}
+            <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
+              {(['todos', ...CATEGORIES] as TabCategory[]).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
+                    activeCategory === cat
+                      ? 'bg-black text-white shadow-md'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-100 dark:border-slate-700'
+                  }`}
+                >
+                  <CatIcon cat={cat} />
+                  {cat === 'todos' ? 'Todos' : getCategoryLabel(cat)}
+                </button>
+              ))}
             </div>
-          ) : (
-            activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} showCategory={activeCategory === 'todos'} />)
-          )}
-        </div>
 
-        {/* Add Button */}
-        <button
-          onClick={() => {
-            setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
-            setShowAddModal(true)
-          }}
-          className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-700 text-slate-400 hover:border-black hover:text-black dark:hover:border-gray-400 dark:hover:text-gray-300 transition-all duration-200 text-sm font-medium"
-        >
-          <Plus size={16} /> {activeCategory === 'todos' ? 'Adicionar hábito' : `Adicionar hábito em ${getCategoryLabel(activeCategory)}`}
-        </button>
+            {/* Habits List */}
+            <div className="space-y-2 animate-fade-in">
+              {activeHabits.length === 0 ? (
+                <div className="glass-card rounded-2xl p-12 text-center text-slate-400">
+                  <p className="text-sm mb-3">Nenhum hábito nesta categoria</p>
+                  <button
+                    onClick={() => {
+                      setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
+                      setShowAddModal(true)
+                    }}
+                    className="text-sm text-gray-500 hover:text-black transition-colors"
+                  >
+                    + Adicionar hábito
+                  </button>
+                </div>
+              ) : (
+                activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} showCategory={activeCategory === 'todos'} />)
+              )}
+            </div>
+
+            {/* Add Button */}
+            <button
+              onClick={() => {
+                setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
+                setShowAddModal(true)
+              }}
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-700 text-slate-400 hover:border-black hover:text-black dark:hover:border-gray-400 dark:hover:text-gray-300 transition-all duration-200 text-sm font-medium"
+            >
+              <Plus size={16} /> {activeCategory === 'todos' ? 'Adicionar hábito' : `Adicionar hábito em ${getCategoryLabel(activeCategory)}`}
+            </button>
+          </>
+        )}
+
+        {/* ── VIEW: HISTÓRICO ── */}
+        {mainView === 'historico' && (
+          <HabitHistoryCalendar habits={habits} />
+        )}
       </div>
 
       {/* Add Habit Modal */}
