@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import { useAppStore, HabitCategory, Habit } from '@/store/store'
 import { Plus, Trash2, Flame, Check, X, LayoutGrid, BookOpen, TrendingUp, Briefcase, Sparkles, ChevronLeft, ChevronRight, CalendarDays, ListChecks } from 'lucide-react'
 import { todayStr, getCategoryLabel, getCategoryColor, getStreak } from '@/lib/utils'
-import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameMonth, isToday, isFuture } from 'date-fns'
+import { format, subDays, addDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameMonth, isToday, isFuture, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 type TabCategory = HabitCategory | 'todos'
@@ -52,10 +52,9 @@ function MiniCalendar({ history }: { history: string[] }) {
   )
 }
 
-function HabitItem({ habit, showCategory = false }: { habit: Habit; showCategory?: boolean }) {
+function HabitItem({ habit, showCategory = false, date }: { habit: Habit; showCategory?: boolean; date: string }) {
   const { toggleHabit, deleteHabit } = useAppStore()
-  const today = todayStr()
-  const isDone = habit.history.includes(today)
+  const isDone = habit.history.includes(date)
   const streak = getStreak(habit.history)
 
   return (
@@ -67,7 +66,7 @@ function HabitItem({ habit, showCategory = false }: { habit: Habit; showCategory
       }`}
     >
       <button
-        onClick={() => toggleHabit(habit.id, today)}
+        onClick={() => toggleHabit(habit.id, date)}
         className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
           isDone
             ? 'bg-green-500 border-green-500 text-white'
@@ -128,6 +127,7 @@ function getPctColor(pct: number): string {
 }
 
 function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
+  const { toggleHabit } = useAppStore()
   const [viewDate, setViewDate] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
 
@@ -135,9 +135,8 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
     const total = habits.length
     const done = habits.filter(h => h.history.includes(dateStr)).length
     const pct = total > 0 ? Math.round((done / total) * 100) : 0
-    const doneHabits = habits.filter(h => h.history.includes(dateStr))
-    const missedHabits = habits.filter(h => !h.history.includes(dateStr))
-    return { total, done, pct, doneHabits, missedHabits }
+    const allHabits = habits
+    return { total, done, pct, allHabits }
   }
 
   const monthStart = startOfMonth(viewDate)
@@ -235,7 +234,7 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-slate-800 dark:text-white">
-                {format(new Date(selectedDay + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                {format(parseISO(selectedDay), "dd 'de' MMMM", { locale: ptBR })}
               </h3>
               <p className="text-sm text-slate-400 mt-0.5">
                 {selectedStats.done} de {selectedStats.total} hábitos — {selectedStats.pct}%
@@ -254,37 +253,34 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
             />
           </div>
 
-          {/* Done habits */}
-          {selectedStats.doneHabits.length > 0 && (
-            <div className="mb-3">
-              <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">Feitos</p>
-              <div className="space-y-1.5">
-                {selectedStats.doneHabits.map(h => (
-                  <div key={h.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                    <Check size={14} className="text-green-500 flex-shrink-0" />
-                    <span>{h.name}</span>
-                    <span className="text-xs text-slate-400 ml-auto">{getCategoryLabel(h.category)}</span>
+          {/* All habits toggleable */}
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Hábitos — clique para marcar/desmarcar</p>
+          <div className="space-y-1.5">
+            {selectedStats.allHabits.map(h => {
+              const isDone = h.history.includes(selectedDay)
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => toggleHabit(h.id, selectedDay)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 text-left ${
+                    isDone
+                      ? 'bg-green-50 dark:bg-green-900/15 hover:bg-green-100 dark:hover:bg-green-900/25'
+                      : 'bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-slate-600'
+                  }`}>
+                    {isDone && <Check size={11} strokeWidth={3} />}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Missed habits */}
-          {selectedStats.missedHabits.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2">Não feitos</p>
-              <div className="space-y-1.5">
-                {selectedStats.missedHabits.map(h => (
-                  <div key={h.id} className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
-                    <X size={14} className="text-red-400 flex-shrink-0" />
-                    <span>{h.name}</span>
-                    <span className="text-xs text-slate-300 dark:text-slate-600 ml-auto">{getCategoryLabel(h.category)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <span className={`text-sm flex-1 ${isDone ? 'text-green-700 dark:text-green-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
+                    {h.name}
+                  </span>
+                  <span className="text-xs text-slate-400">{getCategoryLabel(h.category)}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -300,15 +296,30 @@ export default function HabitsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [newHabitName, setNewHabitName] = useState('')
   const [newHabitCat, setNewHabitCat] = useState<HabitCategory>('momento-com-deus')
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr())
 
   const today = todayStr()
+  const isViewingToday = selectedDate === today
+
   const totalHabits = habits.length
-  const completedToday = habits.filter(h => h.history.includes(today)).length
+  const completedToday = habits.filter(h => h.history.includes(selectedDate)).length
   const pct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
 
   const activeHabits = activeCategory === 'todos'
     ? [...habits].sort((a, b) => a.category.localeCompare(b.category))
     : habits.filter(h => h.category === activeCategory)
+
+  const goToPrevDay = () => {
+    const d = parseISO(selectedDate)
+    setSelectedDate(format(subDays(d, 1), 'yyyy-MM-dd'))
+  }
+  const goToNextDay = () => {
+    const d = parseISO(selectedDate)
+    const next = addDays(d, 1)
+    if (format(next, 'yyyy-MM-dd') <= today) {
+      setSelectedDate(format(next, 'yyyy-MM-dd'))
+    }
+  }
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault()
@@ -371,7 +382,9 @@ export default function HabitsPage() {
         <div className="glass-card rounded-2xl p-6 mb-6 shadow-sm animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="font-semibold text-slate-700 dark:text-slate-200">Progresso de Hoje</h2>
+              <h2 className="font-semibold text-slate-700 dark:text-slate-200">
+                {isViewingToday ? 'Progresso de Hoje' : `Progresso — ${format(parseISO(selectedDate), "dd 'de' MMM", { locale: ptBR })}`}
+              </h2>
               <p className="text-slate-400 text-sm">
                 {completedToday} de {totalHabits} hábitos
               </p>
@@ -387,7 +400,7 @@ export default function HabitsPage() {
           <div className="grid grid-cols-4 gap-3 mt-4">
             {CATEGORIES.map(cat => {
               const catHabits = habits.filter(h => h.category === cat)
-              const done = catHabits.filter(h => h.history.includes(today)).length
+              const done = catHabits.filter(h => h.history.includes(selectedDate)).length
               return (
                 <div key={cat} className="text-center">
                   <CatIcon cat={cat} size={18} />
@@ -412,6 +425,36 @@ export default function HabitsPage() {
         {/* ── VIEW: HOJE ── */}
         {mainView === 'hoje' && (
           <>
+            {/* Date Navigation */}
+            <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-2.5 mb-4">
+              <button
+                onClick={goToPrevDay}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200 capitalize">
+                  {isViewingToday ? 'Hoje' : format(parseISO(selectedDate), "EEEE, dd 'de' MMM", { locale: ptBR })}
+                </span>
+                {!isViewingToday && (
+                  <button
+                    onClick={() => setSelectedDate(today)}
+                    className="text-xs px-2 py-0.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
+                  >
+                    Voltar a hoje
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={goToNextDay}
+                disabled={isViewingToday}
+                className={`p-1.5 rounded-lg transition-colors ${isViewingToday ? 'opacity-20 cursor-default' : 'hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
             {/* Category Tabs */}
             <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
               {(['todos', ...CATEGORIES] as TabCategory[]).map(cat => (
@@ -446,7 +489,7 @@ export default function HabitsPage() {
                   </button>
                 </div>
               ) : (
-                activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} showCategory={activeCategory === 'todos'} />)
+                activeHabits.map(habit => <HabitItem key={habit.id} habit={habit} showCategory={activeCategory === 'todos'} date={selectedDate} />)
               )}
             </div>
 
