@@ -1,9 +1,20 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Section = 'dashboard' | 'calendar' | 'habits' | 'training'
+export type Section = 'dashboard' | 'calendar' | 'habits' | 'training' | 'metas'
 export type HabitCategory = 'momento-com-deus' | 'desenvolvimento' | 'trabalho' | 'cuidados-pessoais'
 export type EventType = 'habit' | 'training' | 'personal' | 'work'
+export type GoalCategory = 'fe' | 'saude' | 'trabalho' | 'desenvolvimento' | 'pessoal'
+
+export interface MonthlyGoal {
+  id: string
+  title: string
+  description?: string
+  month: string // YYYY-MM
+  category: GoalCategory
+  completed: boolean
+  createdAt: string
+}
 
 export interface CalendarEvent {
   id: string
@@ -31,12 +42,21 @@ export interface TrainingLog {
   updatedAt: string
 }
 
+export interface DayNote {
+  id: string
+  date: string // YYYY-MM-DD
+  content: string
+  updatedAt: string
+}
+
 interface AppState {
   activeSection: Section
   darkMode: boolean
   events: CalendarEvent[]
   habits: Habit[]
   trainingLogs: TrainingLog[]
+  dayNotes: DayNote[]
+  goals: MonthlyGoal[]
 
   setActiveSection: (s: Section) => void
   toggleDarkMode: () => void
@@ -54,6 +74,15 @@ interface AppState {
   // Training
   saveTrainingLog: (date: string, content: string) => void
   deleteTrainingLog: (id: string) => void
+
+  // Day Notes
+  saveDayNote: (date: string, content: string) => void
+  deleteDayNote: (date: string) => void
+
+  // Goals
+  addGoal: (g: Omit<MonthlyGoal, 'id' | 'createdAt' | 'completed'>) => void
+  deleteGoal: (id: string) => void
+  toggleGoal: (id: string) => void
 }
 
 const DEFAULT_HABITS: Habit[] = [
@@ -79,6 +108,8 @@ export const useAppStore = create<AppState>()(
       events: [],
       habits: DEFAULT_HABITS,
       trainingLogs: [],
+      dayNotes: [],
+      goals: [],
 
       setActiveSection: (s) => set({ activeSection: s }),
       toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
@@ -127,6 +158,41 @@ export const useAppStore = create<AppState>()(
       }),
       deleteTrainingLog: (id) => set((state) => ({
         trainingLogs: state.trainingLogs.filter(l => l.id !== id)
+      })),
+
+      saveDayNote: (date, content) => set((state) => {
+        const existing = state.dayNotes.find(n => n.date === date)
+        if (!content.trim()) {
+          return { dayNotes: state.dayNotes.filter(n => n.date !== date) }
+        }
+        if (existing) {
+          return {
+            dayNotes: state.dayNotes.map(n =>
+              n.date === date ? { ...n, content, updatedAt: new Date().toISOString() } : n
+            )
+          }
+        }
+        return {
+          dayNotes: [...state.dayNotes, {
+            id: crypto.randomUUID(),
+            date,
+            content,
+            updatedAt: new Date().toISOString()
+          }]
+        }
+      }),
+      deleteDayNote: (date) => set((state) => ({
+        dayNotes: state.dayNotes.filter(n => n.date !== date)
+      })),
+
+      addGoal: (g) => set((state) => ({
+        goals: [...state.goals, { ...g, id: crypto.randomUUID(), completed: false, createdAt: new Date().toISOString().split('T')[0] }]
+      })),
+      deleteGoal: (id) => set((state) => ({
+        goals: state.goals.filter(g => g.id !== id)
+      })),
+      toggleGoal: (id) => set((state) => ({
+        goals: state.goals.map(g => g.id === id ? { ...g, completed: !g.completed } : g)
       })),
     }),
     { name: 'korganizer-storage' }

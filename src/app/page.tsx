@@ -6,6 +6,7 @@ import DashboardPage from '@/components/dashboard/DashboardPage'
 import CalendarPage from '@/components/calendar/CalendarPage'
 import HabitsPage from '@/components/habits/HabitsPage'
 import TrainingPage from '@/components/training/TrainingPage'
+import MetasPage from '@/components/metas/MetasPage'
 
 export default function Home() {
   const { activeSection, darkMode } = useAppStore()
@@ -27,6 +28,7 @@ export default function Home() {
           {activeSection === 'calendar' && <CalendarPage />}
           {activeSection === 'habits' && <HabitsPage />}
           {activeSection === 'training' && <TrainingPage />}
+          {activeSection === 'metas' && <MetasPage />}
         </main>
       </div>
     </div>

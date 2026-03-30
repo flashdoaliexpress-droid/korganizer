@@ -1,5 +1,5 @@
 'use client'
-import { LayoutDashboard, Calendar, CheckSquare, Dumbbell, Sun, Moon, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Calendar, CheckSquare, Dumbbell, Sun, Moon, Menu, X, Target } from 'lucide-react'
 import { useAppStore, Section } from '@/store/store'
 import { useState } from 'react'
 
@@ -8,6 +8,7 @@ const navItems: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: 'calendar', label: 'Calendar', icon: <Calendar size={20} /> },
   { id: 'habits', label: 'Habits', icon: <CheckSquare size={20} /> },
   { id: 'training', label: 'Training', icon: <Dumbbell size={20} /> },
+  { id: 'metas', label: 'Metas', icon: <Target size={20} /> },
 ]
 
 export default function Sidebar() {

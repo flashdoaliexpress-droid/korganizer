@@ -1,7 +1,8 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppStore, CalendarEvent } from '@/store/store'
-import { ChevronLeft, ChevronRight, Plus, X, Clock, Trash2, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Clock, Trash2, Pencil, ListChecks, StickyNote, Copy, ClipboardPaste } from 'lucide-react'
+import { getCategoryColor, getCategoryLabel } from '@/lib/utils'
 import {
   startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isToday, isSameMonth,
@@ -65,14 +66,20 @@ const EMPTY_FORM = {
   color: '#111111', description: '',
 }
 
+type SideTab = 'eventos' | 'habitos' | 'notas'
+
 export default function CalendarPage() {
-  const { events, addEvent, updateEvent, deleteEvent } = useAppStore()
+  const { events, addEvent, updateEvent, deleteEvent, habits, dayNotes, saveDayNote } = useAppStore()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<ViewMode>('month')
   const [selectedDay, setSelectedDay] = useState<string>(todayStr())
   const [showModal, setShowModal] = useState(false)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [sideTab, setSideTab] = useState<SideTab>('eventos')
+  const [noteText, setNoteText] = useState('')
+  const [copiedEvent, setCopiedEvent] = useState<CalendarEvent | null>(null)
+  const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dayScrollRef = useRef<HTMLDivElement>(null)
 
   // Scroll day view to current hour on mount
@@ -82,6 +89,20 @@ export default function CalendarPage() {
       dayScrollRef.current.scrollTop = Math.max(0, (hour - 2) * HOUR_HEIGHT)
     }
   }, [view, selectedDay])
+
+  // Load note for selected day
+  useEffect(() => {
+    const existing = dayNotes.find(n => n.date === selectedDay)
+    setNoteText(existing?.content ?? '')
+  }, [selectedDay, dayNotes])
+
+  const handleNoteChange = (text: string) => {
+    setNoteText(text)
+    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
+    noteSaveTimer.current = setTimeout(() => {
+      saveDayNote(selectedDay, text)
+    }, 800)
+  }
 
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 })
@@ -110,6 +131,26 @@ export default function CalendarPage() {
   const openNewModal = (dateStr: string) => {
     setEditingEventId(null)
     setForm({ ...EMPTY_FORM, date: dateStr })
+    setShowModal(true)
+  }
+
+  const pasteEvent = () => {
+    if (!copiedEvent) return
+    addEvent({
+      title: copiedEvent.title,
+      date: selectedDay,
+      startTime: copiedEvent.startTime,
+      endTime: copiedEvent.endTime,
+      type: copiedEvent.type,
+      color: copiedEvent.color,
+      description: copiedEvent.description,
+    })
+    setSideTab('eventos')
+  }
+
+  const scheduleHabit = (habitName: string, habitColor: string) => {
+    setEditingEventId(null)
+    setForm({ ...EMPTY_FORM, date: selectedDay, title: habitName, color: habitColor })
     setShowModal(true)
   }
 
@@ -186,12 +227,21 @@ export default function CalendarPage() {
         {height > 56 && ev.description && (
           <p className="text-[10px] opacity-70 leading-tight truncate mt-0.5">{ev.description}</p>
         )}
-        <button
-          onClick={e2 => { e2.stopPropagation(); deleteEvent(ev.id) }}
-          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded p-0.5"
-        >
-          <X size={9} />
-        </button>
+        <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+          <button
+            onClick={e2 => { e2.stopPropagation(); setCopiedEvent(ev) }}
+            className="bg-black/30 rounded p-0.5 hover:bg-black/50"
+            title="Copiar"
+          >
+            <Copy size={9} />
+          </button>
+          <button
+            onClick={e2 => { e2.stopPropagation(); deleteEvent(ev.id) }}
+            className="bg-black/30 rounded p-0.5 hover:bg-black/50"
+          >
+            <X size={9} />
+          </button>
+        </div>
       </div>
     )
   }
@@ -323,6 +373,7 @@ export default function CalendarPage() {
                     const dayEvs = getEventsForDay(dateStr)
                     const isSelected = dateStr === selectedDay
                     const isTodayDate = isToday(day)
+                    const hasNote = dayNotes.some(n => n.date === dateStr)
                     return (
                       <div
                         key={dateStr}
@@ -333,9 +384,12 @@ export default function CalendarPage() {
                         `}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full ${isTodayDate ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {format(day, 'd')}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full ${isTodayDate ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                              {format(day, 'd')}
+                            </span>
+                            {hasNote && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Tem observação" />}
+                          </div>
                           <button
                             onClick={e => { e.stopPropagation(); openNewModal(dateStr) }}
                             className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded-full bg-black text-white transition-opacity"
@@ -354,47 +408,164 @@ export default function CalendarPage() {
               </div>
 
               {/* Day side panel */}
-              <div className="w-72 glass-card rounded-2xl shadow-sm p-4 overflow-y-auto scrollbar-hide flex flex-col flex-shrink-0">
-                <div className="flex items-center justify-between mb-4">
+              <div className="w-72 glass-card rounded-2xl shadow-sm flex flex-col flex-shrink-0 overflow-hidden">
+                {/* Panel header */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
                   <div>
                     <h3 className="font-semibold text-slate-800 dark:text-slate-200">{format(parseISO(selectedDay), 'd MMM')}</h3>
-                    <p className="text-xs text-slate-400">{selectedDayEvents.length} evento(s)</p>
+                    <p className="text-xs text-slate-400">
+                      {sideTab === 'eventos' ? `${selectedDayEvents.length} evento(s)` : sideTab === 'habitos' ? `${habits.length} hábito(s)` : 'Observações'}
+                    </p>
                   </div>
-                  <button onClick={() => openNewModal(selectedDay)} className="w-8 h-8 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-colors">
-                    <Plus size={14} />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {copiedEvent && sideTab === 'eventos' && (
+                      <button
+                        onClick={pasteEvent}
+                        title={`Colar "${copiedEvent.title}"`}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors text-xs font-medium"
+                      >
+                        <ClipboardPaste size={13} /> Colar
+                      </button>
+                    )}
+                    {sideTab === 'eventos' && (
+                      <button onClick={() => openNewModal(selectedDay)} className="w-8 h-8 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-colors">
+                        <Plus size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {selectedDayEvents.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400 py-8">
-                    <Clock size={28} className="mb-2 opacity-30" />
-                    <p className="text-sm text-center">Nenhum evento</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {selectedDayEvents.map(ev => (
-                      <div key={ev.id} className="p-3 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ev.color || '#111' }} />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{ev.title}</p>
-                              <p className="text-xs text-slate-400 mt-0.5">{ev.startTime} – {ev.endTime}</p>
-                              {ev.description && <p className="text-xs text-slate-400 mt-1 truncate">{ev.description}</p>}
-                            </div>
-                          </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
-                            <button onClick={() => openEditModal(ev)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => deleteEvent(ev.id)} className="text-slate-400 hover:text-red-500 p-1 rounded">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+
+                {/* Copied event indicator */}
+                {copiedEvent && (
+                  <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex-shrink-0">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: copiedEvent.color }} />
+                    <span className="text-xs text-slate-600 dark:text-slate-300 flex-1 truncate">Copiado: <strong>{copiedEvent.title}</strong></span>
+                    <button onClick={() => setCopiedEvent(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+                      <X size={12} />
+                    </button>
                   </div>
                 )}
+
+                {/* Tabs */}
+                <div className="flex gap-1 mx-4 mb-3 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 flex-shrink-0">
+                  <button
+                    onClick={() => setSideTab('eventos')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      sideTab === 'eventos' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <Clock size={12} /> Eventos
+                  </button>
+                  <button
+                    onClick={() => setSideTab('habitos')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      sideTab === 'habitos' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <ListChecks size={12} /> Hábitos
+                  </button>
+                  <button
+                    onClick={() => setSideTab('notas')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+                      sideTab === 'notas' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    <StickyNote size={12} /> Notas
+                    {dayNotes.some(n => n.date === selectedDay) && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4">
+                  {sideTab === 'eventos' && (
+                    selectedDayEvents.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center text-slate-400 py-8">
+                        <Clock size={28} className="mb-2 opacity-30" />
+                        <p className="text-sm text-center">Nenhum evento</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedDayEvents.map(ev => (
+                          <div key={ev.id} className="p-3 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2 flex-1 min-w-0">
+                                <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ev.color || '#111' }} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{ev.title}</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">{ev.startTime} – {ev.endTime}</p>
+                                  {ev.description && <p className="text-xs text-slate-400 mt-1 truncate">{ev.description}</p>}
+                                </div>
+                              </div>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                                <button onClick={() => { setCopiedEvent(ev) }} title="Copiar evento" className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded">
+                                  <Copy size={13} />
+                                </button>
+                                <button onClick={() => openEditModal(ev)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded">
+                                  <Pencil size={13} />
+                                </button>
+                                <button onClick={() => deleteEvent(ev.id)} className="text-slate-400 hover:text-red-500 p-1 rounded">
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+
+                  {sideTab === 'notas' && (
+                    <div className="flex flex-col gap-2 h-full">
+                      <p className="text-xs text-slate-400 leading-snug">
+                        Observações para <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), "d 'de' MMM")}</strong>. Salvo automaticamente.
+                      </p>
+                      <textarea
+                        value={noteText}
+                        onChange={e => handleNoteChange(e.target.value)}
+                        placeholder="Anote lembretes, tarefas pendentes, observações do dia..."
+                        className="flex-1 w-full min-h-[220px] px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-black resize-none"
+                      />
+                      {noteText.trim() && (
+                        <p className="text-[10px] text-slate-400 text-right">
+                          {noteText.length} caracteres · salvo automaticamente
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {sideTab === 'habitos' && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-slate-400 mb-2 leading-snug">
+                        Clique em <strong className="text-slate-600 dark:text-slate-300">+</strong> para agendar um hábito no dia <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), 'd MMM')}</strong>.
+                      </p>
+                      {habits.map(habit => {
+                        const color = getCategoryColor(habit.category)
+                        const alreadyScheduled = selectedDayEvents.some(ev => ev.title === habit.name)
+                        return (
+                          <div
+                            key={habit.id}
+                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group"
+                          >
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                            <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{habit.name}</span>
+                            {alreadyScheduled ? (
+                              <span className="text-[10px] text-emerald-500 font-semibold flex-shrink-0">✓</span>
+                            ) : (
+                              <button
+                                onClick={() => scheduleHabit(habit.name, color)}
+                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-black text-white rounded-md flex items-center justify-center hover:bg-gray-700 transition-all flex-shrink-0"
+                              >
+                                <Plus size={10} />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -410,12 +581,32 @@ export default function CalendarPage() {
                 <div />
                 {weekDays.map(day => {
                   const isTodayDate = isToday(day)
+                  const dateStr = format(day, 'yyyy-MM-dd')
                   return (
-                    <div key={day.toISOString()} className="py-3 text-center">
+                    <div key={day.toISOString()} className="py-3 text-center relative group">
                       <p className="text-xs text-slate-500 uppercase tracking-wide">{format(day, 'EEE')}</p>
                       <div className={`mx-auto mt-1 w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold ${isTodayDate ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                         {format(day, 'd')}
                       </div>
+                      {copiedEvent && (
+                        <button
+                          onClick={() => {
+                            addEvent({
+                              title: copiedEvent.title,
+                              date: dateStr,
+                              startTime: copiedEvent.startTime,
+                              endTime: copiedEvent.endTime,
+                              type: copiedEvent.type,
+                              color: copiedEvent.color,
+                              description: copiedEvent.description,
+                            })
+                          }}
+                          title={`Colar "${copiedEvent.title}" aqui`}
+                          className="mt-1 mx-auto flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg bg-black hover:bg-gray-800 text-white text-[10px] font-semibold transition-colors"
+                        >
+                          <ClipboardPaste size={10} /> Colar
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -460,7 +651,7 @@ export default function CalendarPage() {
                             <div
                               key={ev.id}
                               onClick={e => { e.stopPropagation(); openEditModal(ev) }}
-                              className="absolute rounded p-0.5 text-white text-xs cursor-pointer hover:opacity-90 overflow-hidden border border-white/20"
+                              className="absolute rounded p-0.5 text-white text-xs cursor-pointer hover:opacity-90 overflow-hidden border border-white/20 group/ev"
                               style={{
                                 top: `${top}px`, height: `${height}px`,
                                 width: `calc(${pct}% - 2px)`,
@@ -469,6 +660,13 @@ export default function CalendarPage() {
                               }}
                             >
                               <p className="font-semibold leading-tight truncate">{ev.title}</p>
+                              <button
+                                onClick={e => { e.stopPropagation(); setCopiedEvent(ev) }}
+                                title="Copiar"
+                                className="absolute top-0.5 right-0.5 opacity-0 group-hover/ev:opacity-100 bg-black/30 hover:bg-black/60 rounded p-0.5 transition-opacity"
+                              >
+                                <Copy size={9} />
+                              </button>
                             </div>
                           )
                         })}
