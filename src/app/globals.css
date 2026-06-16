@@ -30,6 +30,10 @@ html, body {
 }
 .animate-fade-in { animation: fadeIn 0.3s ease-out; }
 
+/* Safe area utilities (iPhone notch / home indicator) */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-top    { padding-top: env(safe-area-inset-top); }
+
 /* Glass card effect */
 .glass-card {
   background: rgba(255, 255, 255, 0.85);

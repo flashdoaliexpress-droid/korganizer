@@ -1,18 +1,18 @@
 'use client'
 import { useAppStore } from '@/store/store'
-import { todayStr, getCategoryLabel, getCategoryColor, getStreak, format, ptBR } from '@/lib/utils'
+import { todayStr, getCategoryLabel, getCategoryColor, getStreak } from '@/lib/utils'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Calendar, Dumbbell, ArrowRight, Flame, Target, Clock } from 'lucide-react'
 
 export default function DashboardPage() {
   const { habits, events, trainingLogs, setActiveSection } = useAppStore()
   const today = todayStr()
 
-  // Compute today's habit completion
   const totalHabits = habits.length
   const completedToday = habits.filter(h => h.history.includes(today)).length
   const completionPct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0
 
-  // Category streaks
   const categories = ['momento-com-deus', 'desenvolvimento', 'trabalho', 'cuidados-pessoais']
   const categoryStreaks = categories.map(cat => {
     const catHabits = habits.filter(h => h.category === cat)
@@ -23,22 +23,17 @@ export default function DashboardPage() {
     return { cat, streak, todayDone, total: catHabits.length }
   })
 
-  // Upcoming events (sorted, next 3 from today)
   const upcomingEvents = events
     .filter(e => e.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
     .slice(0, 3)
 
-  // Last training log
   const lastLog = [...trainingLogs].sort((a, b) => b.date.localeCompare(a.date))[0]
 
-  // Greeting based on hour
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite'
 
-  // Format current date using date-fns with ptBR locale
   const formattedDate = format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })
-  // Capitalize first letter
   const dateDisplay = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)
 
   const eventTypeColors: Record<string, string> = {
@@ -57,7 +52,6 @@ export default function DashboardPage() {
 
   return (
     <div className="relative min-h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
-      {/* Decorative background */}
       <div
         className="absolute top-0 right-0 w-[520px] h-[520px] opacity-20 pointer-events-none"
         style={{
@@ -67,19 +61,19 @@ export default function DashboardPage() {
         }}
       />
 
-      <div className="relative z-10 p-8 max-w-6xl mx-auto">
+      <div className="relative z-10 p-4 md:p-8 max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8 animate-fade-in">
+        <div className="mb-6 md:mb-8 animate-fade-in">
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{greeting},</p>
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-white">Welcome, Kauã</h1>
+          <h1 className="text-2xl md:text-4xl font-bold text-slate-900 dark:text-white">Bem-vindo, Kauã</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">{dateDisplay}</p>
         </div>
 
         {/* Bento Grid */}
-        <div className="grid grid-cols-12 gap-4 animate-fade-in">
+        <div className="grid grid-cols-12 gap-3 md:gap-4 animate-fade-in">
 
-          {/* Overall Overview Card */}
-          <div className="col-span-12 md:col-span-4 glass-card rounded-2xl p-6 shadow-sm">
+          {/* Overview */}
+          <div className="col-span-12 md:col-span-4 glass-card rounded-2xl p-5 md:p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Target size={18} className="text-black dark:text-white" />
               <h2 className="font-semibold text-slate-700 dark:text-slate-200">Overview de Hoje</h2>
@@ -113,8 +107,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Upcoming Events Card */}
-          <div className="col-span-12 md:col-span-8 glass-card rounded-2xl p-6 shadow-sm">
+          {/* Upcoming Events */}
+          <div className="col-span-12 md:col-span-8 glass-card rounded-2xl p-5 md:p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Calendar size={18} className="text-black dark:text-white" />
@@ -166,8 +160,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Habits Category Streaks */}
-          <div className="col-span-12 md:col-span-7 glass-card rounded-2xl p-6 shadow-sm">
+          {/* Streaks */}
+          <div className="col-span-12 md:col-span-7 glass-card rounded-2xl p-5 md:p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Flame size={18} className="text-orange-500" />
@@ -212,8 +206,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Training Preview */}
-          <div className="col-span-12 md:col-span-5 glass-card rounded-2xl p-6 shadow-sm">
+          {/* Last Training */}
+          <div className="col-span-12 md:col-span-5 glass-card rounded-2xl p-5 md:p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Dumbbell size={18} className="text-green-500" />

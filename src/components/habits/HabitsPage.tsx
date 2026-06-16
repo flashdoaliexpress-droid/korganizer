@@ -41,11 +41,7 @@ function MiniCalendar({ history }: { history: string[] }) {
       {days.map(({ dateStr, label, done }) => (
         <div key={dateStr} className="flex flex-col items-center gap-0.5">
           <span className="text-xs text-slate-400 leading-none">{label}</span>
-          <div
-            className={`w-5 h-5 rounded-full ${
-              done ? 'bg-green-500' : 'bg-gray-100 dark:bg-slate-700'
-            }`}
-          />
+          <div className={`w-5 h-5 rounded-full ${done ? 'bg-green-500' : 'bg-gray-100 dark:bg-slate-700'}`} />
         </div>
       ))}
     </div>
@@ -58,19 +54,15 @@ function HabitItem({ habit, showCategory = false, date }: { habit: Habit; showCa
   const streak = getStreak(habit.history)
 
   return (
-    <div
-      className={`group flex items-center gap-4 p-4 rounded-xl transition-all duration-200 border ${
-        isDone
-          ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'
-          : 'bg-white dark:bg-slate-800/50 border-gray-100 dark:border-slate-700'
-      }`}
-    >
+    <div className={`group flex items-center gap-3 md:gap-4 p-3.5 md:p-4 rounded-xl transition-all duration-200 border ${
+      isDone
+        ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'
+        : 'bg-white dark:bg-slate-800/50 border-gray-100 dark:border-slate-700'
+    }`}>
       <button
         onClick={() => toggleHabit(habit.id, date)}
-        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
-          isDone
-            ? 'bg-green-500 border-green-500 text-white'
-            : 'border-gray-300 dark:border-slate-600 hover:border-black'
+        className={`w-6 h-6 min-w-[24px] rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+          isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-slate-600 hover:border-black'
         }`}
       >
         {isDone && <Check size={12} strokeWidth={3} />}
@@ -78,13 +70,7 @@ function HabitItem({ habit, showCategory = false, date }: { habit: Habit; showCa
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className={`text-sm font-medium ${
-              isDone
-                ? 'text-green-700 dark:text-green-400 line-through'
-                : 'text-slate-700 dark:text-slate-200'
-            }`}
-          >
+          <span className={`text-sm font-medium ${isDone ? 'text-green-700 dark:text-green-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
             {habit.name}
           </span>
           {showCategory && (
@@ -98,7 +84,7 @@ function HabitItem({ habit, showCategory = false, date }: { habit: Habit; showCa
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {streak > 0 && (
           <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg">
             <Flame size={13} className="text-orange-500" />
@@ -115,8 +101,6 @@ function HabitItem({ habit, showCategory = false, date }: { habit: Habit; showCa
     </div>
   )
 }
-
-// ── Habit History Calendar ───────────────────────────────────────────────────
 
 function getPctColor(pct: number): string {
   if (pct === 0) return ''
@@ -135,8 +119,7 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
     const total = habits.length
     const done = habits.filter(h => h.history.includes(dateStr)).length
     const pct = total > 0 ? Math.round((done / total) * 100) : 0
-    const allHabits = habits
-    return { total, done, pct, allHabits }
+    return { total, done, pct, allHabits: habits }
   }
 
   const monthStart = startOfMonth(viewDate)
@@ -146,40 +129,30 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
   const calDays = eachDayOfInterval({ start: calStart, end: calEnd })
 
   const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
   const selectedStats = selectedDay ? getDayStats(selectedDay) : null
 
   return (
     <div className="animate-fade-in">
-      {/* Month Navigation */}
-      <div className="glass-card rounded-2xl p-5 shadow-sm mb-4">
+      <div className="glass-card rounded-2xl p-4 md:p-5 shadow-sm mb-4">
         <div className="flex items-center justify-between mb-5">
-          <button
-            onClick={() => setViewDate(v => subMonths(v, 1))}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={() => setViewDate(v => subMonths(v, 1))} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <ChevronLeft size={18} />
           </button>
           <h2 className="font-semibold text-slate-800 dark:text-white capitalize">
             {format(viewDate, 'MMMM yyyy', { locale: ptBR })}
           </h2>
-          <button
-            onClick={() => setViewDate(v => addMonths(v, 1))}
-            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-          >
+          <button onClick={() => setViewDate(v => addMonths(v, 1))} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
             <ChevronRight size={18} />
           </button>
         </div>
 
-        {/* Week day headers */}
         <div className="grid grid-cols-7 mb-2">
           {WEEK_DAYS.map(d => (
             <div key={d} className="text-center text-xs font-medium text-slate-400 py-1">{d}</div>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5 md:gap-1">
           {calDays.map(day => {
             const dateStr = format(day, 'yyyy-MM-dd')
             const inMonth = isSameMonth(day, viewDate)
@@ -191,36 +164,27 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
             return (
               <button
                 key={dateStr}
-                onClick={() => {
-                  if (!inMonth || future) return
-                  setSelectedDay(isSelected ? null : dateStr)
-                }}
+                onClick={() => { if (!inMonth || future) return; setSelectedDay(isSelected ? null : dateStr) }}
                 disabled={!inMonth || future}
                 className={`
-                  relative flex flex-col items-center justify-center rounded-xl aspect-square p-1 transition-all duration-150
+                  relative flex flex-col items-center justify-center rounded-lg md:rounded-xl aspect-square p-0.5 md:p-1 transition-all duration-150
                   ${!inMonth ? 'opacity-20 cursor-default' : future ? 'opacity-30 cursor-default' : 'cursor-pointer hover:scale-105'}
                   ${isSelected ? 'ring-2 ring-black dark:ring-white scale-105' : ''}
                   ${stats && stats.pct > 0 ? getPctColor(stats.pct) : inMonth && !future ? 'bg-gray-50 dark:bg-slate-800/50' : ''}
                 `}
               >
-                <span className={`text-xs font-semibold leading-none ${todayDay ? 'text-black dark:text-white underline underline-offset-2' : ''}`}>
+                <span className={`text-[10px] md:text-xs font-semibold leading-none ${todayDay ? 'text-black dark:text-white underline underline-offset-2' : ''}`}>
                   {format(day, 'd')}
                 </span>
                 {stats && stats.pct > 0 && (
-                  <span className="text-[10px] font-bold leading-none mt-0.5 opacity-90">
-                    {stats.pct}%
-                  </span>
-                )}
-                {stats && stats.pct === 0 && inMonth && !future && (
-                  <span className="text-[9px] text-slate-300 dark:text-slate-600 mt-0.5">—</span>
+                  <span className="text-[8px] md:text-[10px] font-bold leading-none mt-0.5 opacity-90">{stats.pct}%</span>
                 )}
               </button>
             )
           })}
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 text-xs text-slate-400">
+        <div className="flex items-center gap-3 md:gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 text-xs text-slate-400 flex-wrap">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 dark:bg-red-900/30 inline-block" /> &lt;30%</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-yellow-100 dark:bg-yellow-900/30 inline-block" /> 30–60%</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/20 inline-block" /> 60–99%</span>
@@ -228,9 +192,8 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
         </div>
       </div>
 
-      {/* Day Detail Panel */}
       {selectedDay && selectedStats && (
-        <div className="glass-card rounded-2xl p-5 shadow-sm animate-fade-in">
+        <div className="glass-card rounded-2xl p-4 md:p-5 shadow-sm animate-fade-in">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-slate-800 dark:text-white">
@@ -240,12 +203,11 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
                 {selectedStats.done} de {selectedStats.total} hábitos — {selectedStats.pct}%
               </p>
             </div>
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold ${getPctColor(selectedStats.pct)} ${selectedStats.pct === 0 ? 'bg-gray-100 dark:bg-slate-700 text-slate-400' : ''}`}>
+            <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-sm md:text-lg font-bold ${getPctColor(selectedStats.pct)} ${selectedStats.pct === 0 ? 'bg-gray-100 dark:bg-slate-700 text-slate-400' : ''}`}>
               {selectedStats.pct}%
             </div>
           </div>
 
-          {/* Progress bar */}
           <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 mb-4">
             <div
               className="h-2 rounded-full bg-gradient-to-r from-black to-gray-500 transition-all duration-500"
@@ -253,8 +215,7 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
             />
           </div>
 
-          {/* All habits toggleable */}
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Hábitos — clique para marcar/desmarcar</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Hábitos — toque para marcar</p>
           <div className="space-y-1.5">
             {selectedStats.allHabits.map(h => {
               const isDone = h.history.includes(selectedDay)
@@ -268,15 +229,13 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
                       : 'bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-700'
                   }`}
                 >
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                    isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-slate-600'
-                  }`}>
+                  <div className={`w-5 h-5 min-w-[20px] rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${isDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 dark:border-slate-600'}`}>
                     {isDone && <Check size={11} strokeWidth={3} />}
                   </div>
                   <span className={`text-sm flex-1 ${isDone ? 'text-green-700 dark:text-green-400 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
                     {h.name}
                   </span>
-                  <span className="text-xs text-slate-400">{getCategoryLabel(h.category)}</span>
+                  <span className="text-xs text-slate-400 hidden sm:block">{getCategoryLabel(h.category)}</span>
                 </button>
               )
             })}
@@ -286,8 +245,6 @@ function HabitHistoryCalendar({ habits }: { habits: Habit[] }) {
     </div>
   )
 }
-
-// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function HabitsPage() {
   const { habits, addHabit } = useAppStore()
@@ -331,65 +288,48 @@ export default function HabitsPage() {
 
   return (
     <div className="relative min-h-screen bg-gray-50 dark:bg-slate-950 overflow-hidden">
-      {/* Decorative */}
       <div
         className="absolute top-0 right-0 w-[540px] h-[540px] opacity-15 pointer-events-none"
-        style={{
-          backgroundImage: 'url(/detalhe-habits.jpeg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
+        style={{ backgroundImage: 'url(/detalhe-habits.jpeg)', backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
 
-      <div className="relative z-10 p-8 max-w-4xl mx-auto">
+      <div className="relative z-10 p-4 md:p-8 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-6 animate-fade-in flex items-start justify-between">
+        <div className="mb-6 animate-fade-in flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Habits</h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-              Tracking seus hábitos diários
-            </p>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">Hábitos</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Tracking seus hábitos diários</p>
           </div>
-
-          {/* View Toggle */}
-          <div className="flex items-center bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl p-1 gap-1">
+          <div className="flex items-center bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl p-1 gap-1 flex-shrink-0">
             <button
               onClick={() => setMainView('hoje')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                mainView === 'hoje'
-                  ? 'bg-black text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 ${
+                mainView === 'hoje' ? 'bg-black text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              <ListChecks size={15} />
-              Hoje
+              <ListChecks size={14} /> Hoje
             </button>
             <button
               onClick={() => setMainView('historico')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                mainView === 'historico'
-                  ? 'bg-black text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200 ${
+                mainView === 'historico' ? 'bg-black text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
-              <CalendarDays size={15} />
-              Histórico
+              <CalendarDays size={14} /> Histórico
             </button>
           </div>
         </div>
 
-        {/* Progress Overview — sempre visível */}
-        <div className="glass-card rounded-2xl p-6 mb-6 shadow-sm animate-fade-in">
+        {/* Progress Overview */}
+        <div className="glass-card rounded-2xl p-5 md:p-6 mb-6 shadow-sm animate-fade-in">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h2 className="font-semibold text-slate-700 dark:text-slate-200">
                 {isViewingToday ? 'Progresso de Hoje' : `Progresso — ${format(parseISO(selectedDate), "dd 'de' MMM", { locale: ptBR })}`}
               </h2>
-              <p className="text-slate-400 text-sm">
-                {completedToday} de {totalHabits} hábitos
-              </p>
+              <p className="text-slate-400 text-sm">{completedToday} de {totalHabits} hábitos</p>
             </div>
-            <span className="text-3xl font-bold text-black dark:text-white">{pct}%</span>
+            <span className="text-2xl md:text-3xl font-bold text-black dark:text-white">{pct}%</span>
           </div>
           <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-3">
             <div
@@ -397,16 +337,14 @@ export default function HabitsPage() {
               style={{ width: `${pct}%` }}
             />
           </div>
-          <div className="grid grid-cols-4 gap-3 mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
             {CATEGORIES.map(cat => {
               const catHabits = habits.filter(h => h.category === cat)
               const done = catHabits.filter(h => h.history.includes(selectedDate)).length
               return (
                 <div key={cat} className="text-center">
-                  <CatIcon cat={cat} size={18} />
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-                    {done}/{catHabits.length}
-                  </p>
+                  <CatIcon cat={cat} size={16} />
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">{done}/{catHabits.length}</p>
                   <div className="mt-1 w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1">
                     <div
                       className="h-1 rounded-full transition-all duration-500"
@@ -427,22 +365,19 @@ export default function HabitsPage() {
           <>
             {/* Date Navigation */}
             <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-2.5 mb-4">
-              <button
-                onClick={goToPrevDay}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-              >
+              <button onClick={goToPrevDay} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
                 <ChevronLeft size={16} />
               </button>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200 capitalize">
-                  {isViewingToday ? 'Hoje' : format(parseISO(selectedDate), "EEEE, dd 'de' MMM", { locale: ptBR })}
+                  {isViewingToday ? 'Hoje' : format(parseISO(selectedDate), "EEE, dd 'de' MMM", { locale: ptBR })}
                 </span>
                 {!isViewingToday && (
                   <button
                     onClick={() => setSelectedDate(today)}
                     className="text-xs px-2 py-0.5 rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
                   >
-                    Voltar a hoje
+                    Hoje
                   </button>
                 )}
               </div>
@@ -461,13 +396,13 @@ export default function HabitsPage() {
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
+                  className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0 ${
                     activeCategory === cat
                       ? 'bg-black text-white shadow-md'
                       : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 border border-gray-100 dark:border-slate-700'
                   }`}
                 >
-                  <CatIcon cat={cat} />
+                  <CatIcon cat={cat} size={13} />
                   {cat === 'todos' ? 'Todos' : getCategoryLabel(cat)}
                 </button>
               ))}
@@ -479,10 +414,7 @@ export default function HabitsPage() {
                 <div className="glass-card rounded-2xl p-12 text-center text-slate-400">
                   <p className="text-sm mb-3">Nenhum hábito nesta categoria</p>
                   <button
-                    onClick={() => {
-                      setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
-                      setShowAddModal(true)
-                    }}
+                    onClick={() => { setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory); setShowAddModal(true) }}
                     className="text-sm text-gray-500 hover:text-black transition-colors"
                   >
                     + Adicionar hábito
@@ -493,56 +425,41 @@ export default function HabitsPage() {
               )}
             </div>
 
-            {/* Add Button */}
             <button
-              onClick={() => {
-                setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory)
-                setShowAddModal(true)
-              }}
+              onClick={() => { setNewHabitCat(activeCategory === 'todos' ? 'momento-com-deus' : activeCategory); setShowAddModal(true) }}
               className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-700 text-slate-400 hover:border-black hover:text-black dark:hover:border-gray-400 dark:hover:text-gray-300 transition-all duration-200 text-sm font-medium"
             >
-              <Plus size={16} /> {activeCategory === 'todos' ? 'Adicionar hábito' : `Adicionar hábito em ${getCategoryLabel(activeCategory)}`}
+              <Plus size={16} /> {activeCategory === 'todos' ? 'Adicionar hábito' : `Adicionar em ${getCategoryLabel(activeCategory)}`}
             </button>
           </>
         )}
 
-        {/* ── VIEW: HISTÓRICO ── */}
-        {mainView === 'historico' && (
-          <HabitHistoryCalendar habits={habits} />
-        )}
+        {mainView === 'historico' && <HabitHistoryCalendar habits={habits} />}
       </div>
 
       {/* Add Habit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="glass-card rounded-t-2xl md:rounded-2xl p-6 w-full md:max-w-md shadow-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">Novo Hábito</h2>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">
-                  Nome do hábito *
-                </label>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Nome do hábito *</label>
                 <input
                   value={newHabitName}
                   onChange={e => setNewHabitName(e.target.value)}
                   placeholder="Ex: Meditar 10 minutos"
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                  autoFocus
-                  required
+                  autoFocus required
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 block">
-                  Categoria
-                </label>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2 block">Categoria</label>
                 <div className="grid grid-cols-2 gap-2">
                   {CATEGORIES.map(cat => (
                     <button
@@ -550,29 +467,21 @@ export default function HabitsPage() {
                       type="button"
                       onClick={() => setNewHabitCat(cat)}
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                        newHabitCat === cat
-                          ? 'bg-black text-white'
-                          : 'bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                        newHabitCat === cat ? 'bg-black text-white' : 'bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
                       }`}
                     >
-                      <CatIcon cat={cat} />
-                      {getCategoryLabel(cat)}
+                      <CatIcon cat={cat} /> {getCategoryLabel(cat)}
                     </button>
                   ))}
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-                >
+                <button type="button" onClick={() => setShowAddModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors"
-                >
+                <button type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition-colors">
                   Adicionar
                 </button>
               </div>

@@ -1,8 +1,8 @@
 'use client'
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { useAppStore, CalendarEvent } from '@/store/store'
+import { useAppStore, CalendarEvent, EventType } from '@/store/store'
 import { ChevronLeft, ChevronRight, Plus, X, Clock, Trash2, Pencil, ListChecks, StickyNote, Copy, ClipboardPaste } from 'lucide-react'
-import { getCategoryColor, getCategoryLabel } from '@/lib/utils'
+import { getCategoryColor } from '@/lib/utils'
 import {
   startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isToday, isSameMonth,
@@ -12,13 +12,20 @@ import { todayStr } from '@/lib/utils'
 
 type ViewMode = 'month' | 'week' | 'day'
 
-const HOUR_HEIGHT = 64 // px per hour
+const HOUR_HEIGHT = 64
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const COLOR_SWATCHES = [
   '#111111', '#374151', '#DC2626', '#D97706',
   '#059669', '#2563EB', '#7C3AED', '#DB2777',
 ]
+
+const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  personal: 'Pessoal',
+  work: 'Trabalho',
+  habit: 'Hábito',
+  training: 'Treino',
+}
 
 function timeToMinutes(time: string): number {
   const parts = time.split(':')
@@ -63,7 +70,7 @@ function getOverlapLayout(evs: CalendarEvent[]): Map<string, { col: number; tota
 
 const EMPTY_FORM = {
   title: '', date: todayStr(), startTime: '08:00', endTime: '09:00',
-  color: '#111111', description: '',
+  color: '#111111', description: '', type: 'personal' as EventType,
 }
 
 type SideTab = 'eventos' | 'habitos' | 'notas'
@@ -79,10 +86,10 @@ export default function CalendarPage() {
   const [sideTab, setSideTab] = useState<SideTab>('eventos')
   const [noteText, setNoteText] = useState('')
   const [copiedEvent, setCopiedEvent] = useState<CalendarEvent | null>(null)
+  const [showSidePanel, setShowSidePanel] = useState(false)
   const noteSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dayScrollRef = useRef<HTMLDivElement>(null)
 
-  // Scroll day view to current hour on mount
   useEffect(() => {
     if (view === 'day' && dayScrollRef.current) {
       const hour = new Date().getHours()
@@ -90,7 +97,6 @@ export default function CalendarPage() {
     }
   }, [view, selectedDay])
 
-  // Load note for selected day
   useEffect(() => {
     const existing = dayNotes.find(n => n.date === selectedDay)
     setNoteText(existing?.content ?? '')
@@ -99,9 +105,7 @@ export default function CalendarPage() {
   const handleNoteChange = (text: string) => {
     setNoteText(text)
     if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current)
-    noteSaveTimer.current = setTimeout(() => {
-      saveDayNote(selectedDay, text)
-    }, 800)
+    noteSaveTimer.current = setTimeout(() => { saveDayNote(selectedDay, text) }, 800)
   }
 
   const calendarDays = useMemo(() => {
@@ -121,10 +125,7 @@ export default function CalendarPage() {
     const d = new Date(currentDate)
     if (view === 'month') d.setMonth(d.getMonth() + dir)
     else if (view === 'week') d.setDate(d.getDate() + dir * 7)
-    else {
-      d.setDate(d.getDate() + dir)
-      setSelectedDay(format(d, 'yyyy-MM-dd'))
-    }
+    else { d.setDate(d.getDate() + dir); setSelectedDay(format(d, 'yyyy-MM-dd')) }
     setCurrentDate(d)
   }
 
@@ -137,13 +138,9 @@ export default function CalendarPage() {
   const pasteEvent = () => {
     if (!copiedEvent) return
     addEvent({
-      title: copiedEvent.title,
-      date: selectedDay,
-      startTime: copiedEvent.startTime,
-      endTime: copiedEvent.endTime,
-      type: copiedEvent.type,
-      color: copiedEvent.color,
-      description: copiedEvent.description,
+      title: copiedEvent.title, date: selectedDay,
+      startTime: copiedEvent.startTime, endTime: copiedEvent.endTime,
+      type: copiedEvent.type, color: copiedEvent.color, description: copiedEvent.description,
     })
     setSideTab('eventos')
   }
@@ -161,6 +158,7 @@ export default function CalendarPage() {
       startTime: ev.startTime, endTime: ev.endTime,
       color: ev.color || '#111111',
       description: ev.description || '',
+      type: ev.type || 'personal',
     })
     setShowModal(true)
   }
@@ -172,13 +170,13 @@ export default function CalendarPage() {
       updateEvent(editingEventId, {
         title: form.title.trim(), date: form.date,
         startTime: form.startTime, endTime: form.endTime,
-        color: form.color, description: form.description,
+        type: form.type, color: form.color, description: form.description,
       })
     } else {
       addEvent({
         title: form.title.trim(), date: form.date,
         startTime: form.startTime, endTime: form.endTime,
-        type: 'personal', color: form.color, description: form.description,
+        type: form.type, color: form.color, description: form.description,
       })
     }
     setShowModal(false)
@@ -188,8 +186,6 @@ export default function CalendarPage() {
     .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime))
 
   const monthStr = format(currentDate, 'MMMM yyyy')
-
-  // ── Render helpers (plain functions, not components) ──────────────────────
 
   const renderEventPill = (ev: CalendarEvent) => (
     <div
@@ -215,30 +211,18 @@ export default function CalendarPage() {
         className="absolute rounded-lg p-1.5 text-white cursor-pointer hover:opacity-90 transition-opacity overflow-hidden group border border-white/20"
         style={{
           top: `${top}px`, height: `${height}px`,
-          width: `calc(${pct}% - 3px)`,
-          left: `calc(${col * pct}% + 1px)`,
+          width: `calc(${pct}% - 3px)`, left: `calc(${col * pct}% + 1px)`,
           backgroundColor: ev.color || '#111111', zIndex: 10,
         }}
       >
         <p className="text-xs font-semibold leading-tight truncate">{ev.title}</p>
-        {height > 36 && (
-          <p className="text-[10px] opacity-80 leading-tight mt-0.5">{ev.startTime} – {ev.endTime}</p>
-        )}
-        {height > 56 && ev.description && (
-          <p className="text-[10px] opacity-70 leading-tight truncate mt-0.5">{ev.description}</p>
-        )}
+        {height > 36 && <p className="text-[10px] opacity-80 leading-tight mt-0.5">{ev.startTime} – {ev.endTime}</p>}
+        {height > 56 && ev.description && <p className="text-[10px] opacity-70 leading-tight truncate mt-0.5">{ev.description}</p>}
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
-          <button
-            onClick={e2 => { e2.stopPropagation(); setCopiedEvent(ev) }}
-            className="bg-black/30 rounded p-0.5 hover:bg-black/50"
-            title="Copiar"
-          >
+          <button onClick={e2 => { e2.stopPropagation(); setCopiedEvent(ev) }} className="bg-black/30 rounded p-0.5 hover:bg-black/50" title="Copiar">
             <Copy size={9} />
           </button>
-          <button
-            onClick={e2 => { e2.stopPropagation(); deleteEvent(ev.id) }}
-            className="bg-black/30 rounded p-0.5 hover:bg-black/50"
-          >
+          <button onClick={e2 => { e2.stopPropagation(); deleteEvent(ev.id) }} className="bg-black/30 rounded p-0.5 hover:bg-black/50">
             <X size={9} />
           </button>
         </div>
@@ -254,50 +238,26 @@ export default function CalendarPage() {
 
     return (
       <div className="flex min-h-0" style={{ height: `${HOUR_HEIGHT * 24}px` }}>
-        {/* Time labels */}
         <div className="w-14 flex-shrink-0 relative select-none">
           {HOURS.map(h => (
-            <div
-              key={h}
-              className="absolute text-xs text-slate-400 text-right pr-3 w-full leading-none"
-              style={{ top: `${h * HOUR_HEIGHT - 7}px` }}
-            >
+            <div key={h} className="absolute text-xs text-slate-400 text-right pr-3 w-full leading-none" style={{ top: `${h * HOUR_HEIGHT - 7}px` }}>
               {h === 0 ? '' : `${String(h).padStart(2, '0')}:00`}
             </div>
           ))}
         </div>
-
-        {/* Grid + events */}
         <div className="flex-1 relative border-l border-gray-200 dark:border-slate-700">
-          {/* Hour lines */}
           {HOURS.map(h => (
-            <div
-              key={h}
-              className="absolute w-full border-t border-gray-200 dark:border-slate-700/80"
-              style={{ top: `${h * HOUR_HEIGHT}px` }}
-            />
+            <div key={h} className="absolute w-full border-t border-gray-200 dark:border-slate-700/80" style={{ top: `${h * HOUR_HEIGHT}px` }} />
           ))}
-          {/* Half-hour lines */}
           {HOURS.map(h => (
-            <div
-              key={`${h}h`}
-              className="absolute w-full border-t border-gray-100 dark:border-slate-800/50"
-              style={{ top: `${h * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}
-            />
+            <div key={`${h}h`} className="absolute w-full border-t border-gray-100 dark:border-slate-800/50" style={{ top: `${h * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }} />
           ))}
-
-          {/* Current time line */}
           {isCurrentDay && (
-            <div
-              className="absolute w-full flex items-center z-20 pointer-events-none"
-              style={{ top: `${(nowMin / 60) * HOUR_HEIGHT}px` }}
-            >
+            <div className="absolute w-full flex items-center z-20 pointer-events-none" style={{ top: `${(nowMin / 60) * HOUR_HEIGHT}px` }}>
               <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1.5 flex-shrink-0 shadow" />
               <div className="flex-1 h-0.5 bg-red-500 shadow" />
             </div>
           )}
-
-          {/* Events */}
           {dayEvs.map(ev => {
             const info = layout.get(ev.id)
             if (!info) return null
@@ -308,6 +268,140 @@ export default function CalendarPage() {
     )
   }
 
+  // ── Side Panel Content ────────────────────────────────────────────────────
+  const SidePanel = () => (
+    <div className="w-full md:w-72 glass-card rounded-2xl shadow-sm flex flex-col flex-shrink-0 overflow-hidden h-72 md:h-auto">
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
+        <div>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">{format(parseISO(selectedDay), 'd MMM')}</h3>
+          <p className="text-xs text-slate-400">
+            {sideTab === 'eventos' ? `${selectedDayEvents.length} evento(s)` : sideTab === 'habitos' ? `${habits.length} hábito(s)` : 'Observações'}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {copiedEvent && sideTab === 'eventos' && (
+            <button onClick={pasteEvent} title={`Colar "${copiedEvent.title}"`}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors text-xs font-medium">
+              <ClipboardPaste size={13} /> Colar
+            </button>
+          )}
+          {sideTab === 'eventos' && (
+            <button onClick={() => openNewModal(selectedDay)} className="w-8 h-8 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-colors">
+              <Plus size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {copiedEvent && (
+        <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex-shrink-0">
+          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: copiedEvent.color }} />
+          <span className="text-xs text-slate-600 dark:text-slate-300 flex-1 truncate">Copiado: <strong>{copiedEvent.title}</strong></span>
+          <button onClick={() => setCopiedEvent(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0"><X size={12} /></button>
+        </div>
+      )}
+
+      <div className="flex gap-1 mx-4 mb-3 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 flex-shrink-0">
+        {(['eventos', 'habitos', 'notas'] as SideTab[]).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setSideTab(tab)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 relative ${
+              sideTab === tab ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            {tab === 'eventos' && <><Clock size={12} /> Eventos</>}
+            {tab === 'habitos' && <><ListChecks size={12} /> Hábitos</>}
+            {tab === 'notas' && (
+              <>
+                <StickyNote size={12} /> Notas
+                {dayNotes.some(n => n.date === selectedDay) && (
+                  <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                )}
+              </>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4">
+        {sideTab === 'eventos' && (
+          selectedDayEvents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-slate-400 py-8">
+              <Clock size={28} className="mb-2 opacity-30" />
+              <p className="text-sm text-center">Nenhum evento</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {selectedDayEvents.map(ev => (
+                <div key={ev.id} className="p-3 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ev.color || '#111' }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{ev.title}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{ev.startTime} – {ev.endTime}</p>
+                        {ev.description && <p className="text-xs text-slate-400 mt-1 truncate">{ev.description}</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button onClick={() => setCopiedEvent(ev)} title="Copiar" className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded"><Copy size={13} /></button>
+                      <button onClick={() => openEditModal(ev)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded"><Pencil size={13} /></button>
+                      <button onClick={() => deleteEvent(ev.id)} className="text-slate-400 hover:text-red-500 p-1 rounded"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {sideTab === 'notas' && (
+          <div className="flex flex-col gap-2 h-full">
+            <p className="text-xs text-slate-400 leading-snug">
+              Observações para <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), "d 'de' MMM")}</strong>. Salvo automaticamente.
+            </p>
+            <textarea
+              value={noteText}
+              onChange={e => handleNoteChange(e.target.value)}
+              placeholder="Anote lembretes, tarefas pendentes, observações do dia..."
+              className="flex-1 w-full min-h-[180px] px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-black resize-none"
+            />
+            {noteText.trim() && <p className="text-[10px] text-slate-400 text-right">{noteText.length} caracteres · salvo automaticamente</p>}
+          </div>
+        )}
+
+        {sideTab === 'habitos' && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-slate-400 mb-2 leading-snug">
+              Clique em <strong className="text-slate-600 dark:text-slate-300">+</strong> para agendar um hábito em <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), 'd MMM')}</strong>.
+            </p>
+            {habits.map(habit => {
+              const color = getCategoryColor(habit.category)
+              const alreadyScheduled = selectedDayEvents.some(ev => ev.title === habit.name)
+              return (
+                <div key={habit.id} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{habit.name}</span>
+                  {alreadyScheduled ? (
+                    <span className="text-[10px] text-emerald-500 font-semibold flex-shrink-0">✓</span>
+                  ) : (
+                    <button
+                      onClick={() => scheduleHabit(habit.name, color)}
+                      className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-black text-white rounded-md flex items-center justify-center hover:bg-gray-700 transition-all flex-shrink-0"
+                    >
+                      <Plus size={10} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
@@ -317,54 +411,81 @@ export default function CalendarPage() {
         style={{ backgroundImage: 'url(/detalhe-calendar.jpeg)', backgroundSize: 'cover' }}
       />
 
-      <div className="relative z-10 p-6 h-screen flex flex-col max-w-7xl mx-auto">
+      <div className="relative z-10 p-3 md:p-6 flex flex-col md:h-screen max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 md:mb-6 flex-shrink-0">
+          <div className="flex items-center gap-2">
             <button onClick={() => navigate(-1)} className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-colors">
               <ChevronLeft size={20} className="text-slate-600 dark:text-slate-400" />
             </button>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-white capitalize">{monthStr}</h1>
+            <h1 className="text-lg md:text-2xl font-bold text-slate-800 dark:text-white capitalize">{monthStr}</h1>
             <button onClick={() => navigate(1)} className="p-2 rounded-xl hover:bg-white dark:hover:bg-slate-800 transition-colors">
               <ChevronRight size={20} className="text-slate-600 dark:text-slate-400" />
             </button>
             <button
               onClick={() => { setCurrentDate(new Date()); setSelectedDay(todayStr()) }}
-              className="text-sm px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+              className="text-xs md:text-sm px-2.5 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
             >
               Hoje
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             {(['month', 'week', 'day'] as ViewMode[]).map(v => (
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`text-sm px-4 py-1.5 rounded-lg font-medium transition-all ${
+                className={`text-xs md:text-sm px-2.5 md:px-4 py-1.5 rounded-lg font-medium transition-all ${
                   view === v ? 'bg-black text-white shadow-sm' : 'text-slate-500 hover:bg-white dark:hover:bg-slate-800 dark:text-slate-400'
-                }`}
+                } ${v === 'week' ? 'hidden md:block' : ''}`}
               >
                 {v === 'month' ? 'Mês' : v === 'week' ? 'Semana' : 'Dia'}
               </button>
             ))}
             <button
               onClick={() => openNewModal(selectedDay)}
-              className="flex items-center gap-2 px-4 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium ml-2"
+              className="flex items-center gap-1.5 px-2.5 md:px-4 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-xs md:text-sm font-medium ml-1"
             >
-              <Plus size={16} /> Evento
+              <Plus size={14} /> <span className="hidden md:inline">Evento</span>
+            </button>
+            {/* Mobile side panel toggle */}
+            <button
+              onClick={() => setShowSidePanel(v => !v)}
+              className="flex md:hidden items-center gap-1.5 px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 transition-colors text-xs font-medium"
+            >
+              <ListChecks size={14} />
+              {selectedDayEvents.length > 0 && <span className="bg-black text-white text-[10px] rounded-full px-1.5">{selectedDayEvents.length}</span>}
             </button>
           </div>
         </div>
 
-        <div className="flex gap-4 flex-1 min-h-0">
+        {/* Mobile side panel overlay */}
+        {showSidePanel && (
+          <div className="flex md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowSidePanel(false)}>
+            <div className="mt-auto w-full bg-white dark:bg-slate-900 rounded-t-2xl max-h-[75vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-800">
+                <h3 className="font-semibold text-slate-800 dark:text-white">
+                  {format(parseISO(selectedDay), "d 'de' MMMM")}
+                </h3>
+                <button onClick={() => setShowSidePanel(false)} className="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-4" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
+                <SidePanel />
+              </div>
+            </div>
+          </div>
+        )}
 
-          {/* ── MONTH VIEW ─────────────────────────────── */}
+        <div className="flex flex-col md:flex-row gap-4 md:flex-1 md:min-h-0 overflow-y-auto md:overflow-hidden">
+
+          {/* ── MONTH VIEW ─────────────────────────── */}
           {view === 'month' && (
             <>
-              <div className="flex-1 glass-card rounded-2xl shadow-sm overflow-hidden flex flex-col">
+              <div className="flex-1 glass-card rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[400px] md:min-h-0">
                 <div className="grid grid-cols-7 border-b border-gray-100 dark:border-slate-800 flex-shrink-0">
                   {WEEKDAYS.map(d => (
-                    <div key={d} className="py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{d}</div>
+                    <div key={d} className="py-2 md:py-3 text-center text-[10px] md:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{d}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto scrollbar-hide">
@@ -377,15 +498,15 @@ export default function CalendarPage() {
                     return (
                       <div
                         key={dateStr}
-                        onClick={() => setSelectedDay(dateStr)}
-                        className={`border-b border-r border-gray-100 dark:border-slate-800/50 p-1.5 cursor-pointer min-h-[80px] transition-colors group
+                        onClick={() => { setSelectedDay(dateStr); setShowSidePanel(false) }}
+                        className={`border-b border-r border-gray-100 dark:border-slate-800/50 p-1 md:p-1.5 cursor-pointer min-h-[56px] md:min-h-[80px] transition-colors group
                           ${isSelected ? 'bg-gray-100 dark:bg-gray-800/40' : 'hover:bg-gray-50 dark:hover:bg-slate-800/30'}
                           ${!isSameMonth(day, currentDate) ? 'opacity-40' : ''}
                         `}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-1">
-                            <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full ${isTodayDate ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                        <div className="flex items-center justify-between mb-0.5 md:mb-1">
+                          <div className="flex items-center gap-0.5 md:gap-1">
+                            <span className={`text-xs font-medium w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full ${isTodayDate ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                               {format(day, 'd')}
                             </span>
                             {hasNote && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" title="Tem observação" />}
@@ -398,8 +519,8 @@ export default function CalendarPage() {
                           </button>
                         </div>
                         <div className="space-y-0.5 overflow-hidden">
-                          {dayEvs.slice(0, 3).map(ev => renderEventPill(ev))}
-                          {dayEvs.length > 3 && <div className="text-xs text-slate-400 px-1">+{dayEvs.length - 3}</div>}
+                          {dayEvs.slice(0, 2).map(ev => renderEventPill(ev))}
+                          {dayEvs.length > 2 && <div className="text-[10px] text-slate-400 px-1">+{dayEvs.length - 2}</div>}
                         </div>
                       </div>
                     )
@@ -407,165 +528,9 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* Day side panel */}
-              <div className="w-72 glass-card rounded-2xl shadow-sm flex flex-col flex-shrink-0 overflow-hidden">
-                {/* Panel header */}
-                <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
-                  <div>
-                    <h3 className="font-semibold text-slate-800 dark:text-slate-200">{format(parseISO(selectedDay), 'd MMM')}</h3>
-                    <p className="text-xs text-slate-400">
-                      {sideTab === 'eventos' ? `${selectedDayEvents.length} evento(s)` : sideTab === 'habitos' ? `${habits.length} hábito(s)` : 'Observações'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {copiedEvent && sideTab === 'eventos' && (
-                      <button
-                        onClick={pasteEvent}
-                        title={`Colar "${copiedEvent.title}"`}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors text-xs font-medium"
-                      >
-                        <ClipboardPaste size={13} /> Colar
-                      </button>
-                    )}
-                    {sideTab === 'eventos' && (
-                      <button onClick={() => openNewModal(selectedDay)} className="w-8 h-8 bg-black text-white rounded-xl flex items-center justify-center hover:bg-gray-800 transition-colors">
-                        <Plus size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Copied event indicator */}
-                {copiedEvent && (
-                  <div className="mx-4 mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex-shrink-0">
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: copiedEvent.color }} />
-                    <span className="text-xs text-slate-600 dark:text-slate-300 flex-1 truncate">Copiado: <strong>{copiedEvent.title}</strong></span>
-                    <button onClick={() => setCopiedEvent(null)} className="text-slate-400 hover:text-slate-600 flex-shrink-0">
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Tabs */}
-                <div className="flex gap-1 mx-4 mb-3 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 flex-shrink-0">
-                  <button
-                    onClick={() => setSideTab('eventos')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                      sideTab === 'eventos' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    <Clock size={12} /> Eventos
-                  </button>
-                  <button
-                    onClick={() => setSideTab('habitos')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                      sideTab === 'habitos' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    <ListChecks size={12} /> Hábitos
-                  </button>
-                  <button
-                    onClick={() => setSideTab('notas')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 relative ${
-                      sideTab === 'notas' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    <StickyNote size={12} /> Notas
-                    {dayNotes.some(n => n.date === selectedDay) && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-amber-400 rounded-full" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Tab Content */}
-                <div className="flex-1 overflow-y-auto scrollbar-hide px-4 pb-4">
-                  {sideTab === 'eventos' && (
-                    selectedDayEvents.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center text-slate-400 py-8">
-                        <Clock size={28} className="mb-2 opacity-30" />
-                        <p className="text-sm text-center">Nenhum evento</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {selectedDayEvents.map(ev => (
-                          <div key={ev.id} className="p-3 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-start gap-2 flex-1 min-w-0">
-                                <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: ev.color || '#111' }} />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{ev.title}</p>
-                                  <p className="text-xs text-slate-400 mt-0.5">{ev.startTime} – {ev.endTime}</p>
-                                  {ev.description && <p className="text-xs text-slate-400 mt-1 truncate">{ev.description}</p>}
-                                </div>
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
-                                <button onClick={() => { setCopiedEvent(ev) }} title="Copiar evento" className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded">
-                                  <Copy size={13} />
-                                </button>
-                                <button onClick={() => openEditModal(ev)} className="text-slate-400 hover:text-black dark:hover:text-white p-1 rounded">
-                                  <Pencil size={13} />
-                                </button>
-                                <button onClick={() => deleteEvent(ev.id)} className="text-slate-400 hover:text-red-500 p-1 rounded">
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-
-                  {sideTab === 'notas' && (
-                    <div className="flex flex-col gap-2 h-full">
-                      <p className="text-xs text-slate-400 leading-snug">
-                        Observações para <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), "d 'de' MMM")}</strong>. Salvo automaticamente.
-                      </p>
-                      <textarea
-                        value={noteText}
-                        onChange={e => handleNoteChange(e.target.value)}
-                        placeholder="Anote lembretes, tarefas pendentes, observações do dia..."
-                        className="flex-1 w-full min-h-[220px] px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 text-slate-800 dark:text-slate-200 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-black resize-none"
-                      />
-                      {noteText.trim() && (
-                        <p className="text-[10px] text-slate-400 text-right">
-                          {noteText.length} caracteres · salvo automaticamente
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {sideTab === 'habitos' && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs text-slate-400 mb-2 leading-snug">
-                        Clique em <strong className="text-slate-600 dark:text-slate-300">+</strong> para agendar um hábito no dia <strong className="text-slate-600 dark:text-slate-300">{format(parseISO(selectedDay), 'd MMM')}</strong>.
-                      </p>
-                      {habits.map(habit => {
-                        const color = getCategoryColor(habit.category)
-                        const alreadyScheduled = selectedDayEvents.some(ev => ev.title === habit.name)
-                        return (
-                          <div
-                            key={habit.id}
-                            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700 group"
-                          >
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                            <span className="flex-1 text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{habit.name}</span>
-                            {alreadyScheduled ? (
-                              <span className="text-[10px] text-emerald-500 font-semibold flex-shrink-0">✓</span>
-                            ) : (
-                              <button
-                                onClick={() => scheduleHabit(habit.name, color)}
-                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-black text-white rounded-md flex items-center justify-center hover:bg-gray-700 transition-all flex-shrink-0"
-                              >
-                                <Plus size={10} />
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+              {/* Desktop side panel */}
+              <div className="hidden md:flex">
+                <SidePanel />
               </div>
             </>
           )}
@@ -573,11 +538,7 @@ export default function CalendarPage() {
           {/* ── WEEK VIEW ──────────────────────────────── */}
           {view === 'week' && (
             <div className="flex-1 glass-card rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              {/* Week header */}
-              <div
-                className="grid border-b border-gray-100 dark:border-slate-800 flex-shrink-0"
-                style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}
-              >
+              <div className="grid border-b border-gray-100 dark:border-slate-800 flex-shrink-0" style={{ gridTemplateColumns: '56px repeat(7, 1fr)' }}>
                 <div />
                 {weekDays.map(day => {
                   const isTodayDate = isToday(day)
@@ -590,17 +551,7 @@ export default function CalendarPage() {
                       </div>
                       {copiedEvent && (
                         <button
-                          onClick={() => {
-                            addEvent({
-                              title: copiedEvent.title,
-                              date: dateStr,
-                              startTime: copiedEvent.startTime,
-                              endTime: copiedEvent.endTime,
-                              type: copiedEvent.type,
-                              color: copiedEvent.color,
-                              description: copiedEvent.description,
-                            })
-                          }}
+                          onClick={() => { addEvent({ title: copiedEvent.title, date: dateStr, startTime: copiedEvent.startTime, endTime: copiedEvent.endTime, type: copiedEvent.type, color: copiedEvent.color, description: copiedEvent.description }) }}
                           title={`Colar "${copiedEvent.title}" aqui`}
                           className="mt-1 mx-auto flex items-center justify-center gap-1 px-2 py-0.5 rounded-lg bg-black hover:bg-gray-800 text-white text-[10px] font-semibold transition-colors"
                         >
@@ -613,7 +564,6 @@ export default function CalendarPage() {
               </div>
               <div className="flex-1 overflow-y-auto scrollbar-hide">
                 <div className="flex" style={{ height: `${HOUR_HEIGHT * 24}px` }}>
-                  {/* Time labels */}
                   <div className="w-14 flex-shrink-0 relative">
                     {HOURS.map(h => (
                       <div key={h} className="absolute text-xs text-slate-400 text-right pr-3 w-full leading-none" style={{ top: `${h * HOUR_HEIGHT - 7}px` }}>
@@ -621,7 +571,6 @@ export default function CalendarPage() {
                       </div>
                     ))}
                   </div>
-                  {/* Day columns */}
                   {weekDays.map(day => {
                     const dateStr = format(day, 'yyyy-MM-dd')
                     const dayEvs = getEventsForDay(dateStr)
@@ -652,12 +601,7 @@ export default function CalendarPage() {
                               key={ev.id}
                               onClick={e => { e.stopPropagation(); openEditModal(ev) }}
                               className="absolute rounded p-0.5 text-white text-xs cursor-pointer hover:opacity-90 overflow-hidden border border-white/20 group/ev"
-                              style={{
-                                top: `${top}px`, height: `${height}px`,
-                                width: `calc(${pct}% - 2px)`,
-                                left: `calc(${info.col * pct}% + 1px)`,
-                                backgroundColor: ev.color || '#111', zIndex: 10,
-                              }}
+                              style={{ top: `${top}px`, height: `${height}px`, width: `calc(${pct}% - 2px)`, left: `calc(${info.col * pct}% + 1px)`, backgroundColor: ev.color || '#111', zIndex: 10 }}
                             >
                               <p className="font-semibold leading-tight truncate">{ev.title}</p>
                               <button
@@ -681,21 +625,17 @@ export default function CalendarPage() {
           {/* ── DAY VIEW ───────────────────────────────── */}
           {view === 'day' && (
             <div className="flex-1 glass-card rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              {/* Day header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex-shrink-0">
+              <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 dark:border-slate-800 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 flex items-center justify-center rounded-full text-lg font-bold ${isToday(parseISO(selectedDay)) ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
+                  <div className={`w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-full text-base md:text-lg font-bold ${isToday(parseISO(selectedDay)) ? 'bg-black text-white' : 'text-slate-700 dark:text-slate-300'}`}>
                     {format(parseISO(selectedDay), 'd')}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200 capitalize">{format(parseISO(selectedDay), 'EEEE, d MMMM')}</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-sm md:text-base">{format(parseISO(selectedDay), 'EEEE, d MMMM')}</p>
                     <p className="text-xs text-slate-400">{selectedDayEvents.length} evento(s)</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => openNewModal(selectedDay)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                >
+                <button onClick={() => openNewModal(selectedDay)} className="flex items-center gap-1 px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
                   <Plus size={14} /> Adicionar
                 </button>
               </div>
@@ -708,15 +648,15 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* ── MODAL (Add / Edit) ─────────────────────────── */}
+      {/* ── MODAL ─────────────────────────── */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in">
-            <div className="flex items-center justify-between mb-6">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+          <div className="glass-card rounded-t-2xl md:rounded-2xl p-5 md:p-6 w-full md:max-w-md shadow-2xl animate-fade-in overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-5 md:mb-6">
               <h2 className="text-lg font-bold text-slate-800 dark:text-white">
                 {editingEventId ? 'Editar Evento' : 'Novo Evento'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1">
                 <X size={20} />
               </button>
             </div>
@@ -730,6 +670,23 @@ export default function CalendarPage() {
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-black"
                   required autoFocus
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Tipo</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(Object.entries(EVENT_TYPE_LABELS) as [EventType, string][]).map(([t, label]) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, type: t }))}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-all text-left ${
+                        form.type === t ? 'bg-black text-white' : 'bg-gray-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1 block">Data</label>
@@ -764,14 +721,9 @@ export default function CalendarPage() {
                   ))}
                   <label className="w-7 h-7 rounded-full overflow-hidden cursor-pointer border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-gray-500 transition-colors relative" title="Cor personalizada">
                     <span className="text-gray-400 text-xs">+</span>
-                    <input
-                      type="color" value={form.color}
-                      onChange={e => setForm(f => ({ ...f, color: e.target.value }))}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                    />
+                    <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" />
                   </label>
                 </div>
-                {/* Preview swatch */}
                 <div className="flex items-center gap-2 mt-2">
                   <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: form.color }} />
                   <span className="text-xs text-slate-500 font-mono">{form.color}</span>
@@ -785,11 +737,8 @@ export default function CalendarPage() {
               </div>
               <div className="flex gap-3 pt-2">
                 {editingEventId && (
-                  <button
-                    type="button"
-                    onClick={() => { deleteEvent(editingEventId); setShowModal(false) }}
-                    className="px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
-                  >
+                  <button type="button" onClick={() => { deleteEvent(editingEventId); setShowModal(false) }}
+                    className="px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
                     Excluir
                   </button>
                 )}
