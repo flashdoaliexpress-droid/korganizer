@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
 export type Section = 'dashboard' | 'calendar' | 'habits' | 'training' | 'metas'
@@ -100,8 +101,7 @@ const DEFAULT_HABITS: Habit[] = [
   { id: 'h12', name: 'Dormir rosto pra cima', category: 'cuidados-pessoais', history: [], createdAt: '2026-03-01' },
 ]
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sb() { return supabase as any }
+function sb(): SupabaseClient | null { return supabase }
 
 export const useAppStore = create<AppState>()(
   persist(
